@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Painel de Pontuação</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      overscroll-behavior-y: contain; /* Prevents pull-to-refresh on body scroll */
+    }
+    /* Custom scrollbar for better aesthetics */
+    ::-webkit-scrollbar {
+      width: 6px; /* Slimmer scrollbar */
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #e2e8f0; /* Lighter track */
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #94a3b8; /* Softer thumb color */
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #64748b; /* Darker on hover */
+    }
+    /* Ensure inputs are visible on dark backgrounds if any and remove spinners */
+    input[type="number"] {
+        -moz-appearance: textfield; /* Firefox */
+        appearance: textfield;
+    }
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    /* Style for focused input */
+    input:focus {
+        box-shadow: 0 0 0 2px #3b82f6; /* Blue ring like Tailwind focus-visible:ring-2 */
+        border-color: #3b82f6 !important;
+    }
+    .table-responsive-container {
+        max-width: 100%;
+        overflow-x: auto;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 p-2 sm:p-4 md:p-6 min-h-screen flex flex-col">
+
+  <div class="container mx-auto max-w-5xl flex-grow">
+    <header class="my-6 md:my-8">
+      <h2 class="text-2xl sm:text-3xl font-bold text-center text-blue-600">
+        Painel de Pontuação
+      </h2>
+    </header>
+
+    <div id="addMonthModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 hidden transition-opacity duration-300">
+      <div class="bg-white p-5 sm:p-6 rounded-lg shadow-xl w-full max-w-md transform transition-all duration-300 scale-95 opacity-0" data-modal-content>
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-semibold text-slate-700">Adicionar Novo Mês</h3>
+            <button onclick="closeAddMonthModal()" class="text-slate-400 hover:text-slate-600 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <input type="text" id="newMonthName" placeholder="Nome do Mês (ex: Janeiro)" class="w-full p-3 border border-slate-300 rounded-md mb-5 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm sm:text-base">
+        <div class="flex justify-end space-x-3">
+          <button onclick="closeAddMonthModal()" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-md hover:bg-slate-300 transition-colors text-sm sm:text-base font-medium">Cancelar</button>
+          <button onclick="confirmAddMonth()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm sm:text-base font-medium">Adicionar</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="confirmModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 hidden transition-opacity duration-300">
+      <div class="bg-white p-5 sm:p-6 rounded-lg shadow-xl w-full max-w-md transform transition-all duration-300 scale-95 opacity-0" data-modal-content>
+        <h3 class="text-xl font-semibold mb-3 text-slate-700">Confirmar Ação</h3>
+        <p id="confirmModalMessage" class="mb-6 text-slate-600 text-sm sm:text-base"></p>
+        <div class="flex justify-end space-x-3">
+          <button id="confirmCancelButton" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-md hover:bg-slate-300 transition-colors text-sm sm:text-base font-medium">Cancelar</button>
+          <button id="confirmActionButton" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-sm sm:text-base font-medium">Confirmar</button>
+        </div>
+      </div>
+    </div>
+
+    <main class="bg-white shadow-xl rounded-lg p-3 sm:p-4 md:p-6">
+      <div class="table-responsive-container">
+        <table class="w-full min-w-[768px] text-sm text-left text-slate-600">
+          <thead class="text-xs text-slate-700 uppercase bg-slate-50 rounded-t-lg">
+            <tr>
+              <th scope="col" class="px-3 py-3 sm:px-4 text-center">Mês</th>
+              <th scope="col" class="px-3 py-3 sm:px-4">Participante</th>
+              <th scope="col" class="px-3 py-3 sm:px-4 text-center">Dicas</th>
+              <th scope="col" class="px-3 py-3 sm:px-4 text-center">Tentativas</th>
+              <th scope="col" class="px-3 py-3 sm:px-4 text-center">Pontos</th>
+              <th scope="col" class="px-3 py-3 sm:px-4 text-center whitespace-nowrap">Dias Jogados</th>
+              <th scope="col" class="px-3 py-3 sm:px-4 text-center">Ação</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody" class="divide-y divide-slate-200">
+            </tbody>
+        </table>
+      </div>
+       <div id="loadingState" class="text-center py-10 text-slate-500 hidden">
+        <svg class="animate-spin h-10 w-10 text-blue-500 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p class="text-base font-medium">Carregando dados...</p>
+      </div>
+      <div id="emptyState" class="text-center py-12 text-slate-500 hidden">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto mb-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+        </svg>
+        <p class="text-lg font-semibold mb-1">Nenhum dado encontrado.</p>
+        <p class="text-sm">Adicione um mês para começar a registrar os pontos.</p>
+      </div>
+    </main>
+
+    <footer class="mt-8 text-center">
+        <button onclick="openAddMonthModal()" class="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition-all duration-150 ease-in-out">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+            </svg>
+            Adicionar Mês
+        </button>
+        <div class="mt-6 p-3 bg-slate-200 rounded-lg shadow text-center text-xs sm:text-sm text-slate-600 max-w-md mx-auto">
+            <span class="font-semibold">User ID:</span> <span id="userIdDisplay" class="font-mono break-all">Carregando...</span>
+        </div>
+    </footer>
+  </div>
+
+  <script type="module">
+    // Firebase SDKs - Make sure to use the latest compatible versions
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot, query, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js"; // Added Analytics
+
+    // --- Firebase Configuration ---
+    // This is the fallback config if environment variables are not provided.
+    // It will be replaced by the user's provided config.
+    const firebaseConfigFallback = {
+      apiKey: "AIzaSyA_8fSzWvwP1MocY593tjIFSPU0Vp5eN_U",
+      authDomain: "painel-de-pontuacao-3b1cd.firebaseapp.com",
+      projectId: "painel-de-pontuacao-3b1cd",
+      storageBucket: "painel-de-pontuacao-3b1cd.appspot.com", // Corrected: .appspot.com instead of .firebasestorage.app
+      messagingSenderId: "742565977763",
+      appId: "1:742565977763:web:7d8143e47725a168ff6916",
+      measurementId: "G-95TCRB249S"
+    };
+    
+    // --- App ID and User ID Handling (Provided by Canvas Environment) ---
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-score-app-v2'; 
+    const fbConfigFromEnv = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : firebaseConfigFallback;
+    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+    // Initialize Firebase
+    const app = initializeApp(fbConfigFromEnv);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    const analytics = getAnalytics(app); // Initialize Analytics
+    setLogLevel('debug'); 
+
+    let currentUserId = null;
+    let unsubscribeScores = null; 
+    const participants = ['Joao', 'Maysa']; 
+
+    const loadingState = document.getElementById('loadingState');
+    const emptyState = document.getElementById('emptyState');
+    const tableBody = document.getElementById("tableBody");
+    const tableElement = tableBody.closest('table');
+
+    // --- Authentication ---
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        console.log("User is signed in:", user.uid);
+        currentUserId = user.uid;
+        document.getElementById('userIdDisplay').textContent = currentUserId;
+        loadScores(); 
+      } else {
+        console.log("User is signed out. Attempting to sign in...");
+        currentUserId = null;
+        document.getElementById('userIdDisplay').textContent = 'Não autenticado';
+        if (unsubscribeScores) {
+            unsubscribeScores();
+            unsubscribeScores = null;
+        }
+        tableBody.innerHTML = ""; 
+        showEmptyState(true, "Autenticando...");
+
+        try {
+            if (initialAuthToken) {
+                await signInWithCustomToken(auth, initialAuthToken);
+                console.log("Signed in with custom token.");
+            } else {
+                await signInAnonymously(auth);
+                console.log("Signed in anonymously.");
+            }
+        } catch (error) {
+            console.error("Error during sign-in:", error);
+            document.getElementById('userIdDisplay').textContent = 'Falha na autenticação';
+            showEmptyState(true, "Falha na autenticação. Verifique o console.");
+        }
+      }
+    });
+
+    // --- Firestore Data Path ---
+    function getScoresCollectionRef() {
+        return collection(db, `artifacts/${appId}/public/data/pontuacoes_v2_detailed`);
+    }
+    
+    function getScoreDocRef(monthId) {
+        return doc(db, `artifacts/${appId}/public/data/pontuacoes_v2_detailed/${monthId}`);
+    }
+
+    // --- UI Helper Functions ---
+    function showLoadingState(isLoading) {
+        if (isLoading) {
+            loadingState.classList.remove('hidden');
+            emptyState.classList.add('hidden');
+            if(tableElement) tableElement.classList.add('hidden');
+        } else {
+            loadingState.classList.add('hidden');
+        }
+    }
+
+    function showEmptyState(show, message = "Nenhum dado encontrado.") {
+        const emptyMessageP = emptyState.querySelector('p:last-child');
+        if (emptyMessageP) emptyMessageP.textContent = message;
+
+        if (show) {
+            emptyState.classList.remove('hidden');
+            if(tableElement) tableElement.classList.add('hidden');
+        } else {
+            emptyState.classList.add('hidden');
+            if(tableElement) tableElement.classList.remove('hidden');
+        }
+        if (!show || message !== "Autenticando...") { 
+            showLoadingState(false);
+        }
+    }
+
+    // --- Modal Handling ---
+    const addMonthModal = document.getElementById('addMonthModal');
+    const addMonthModalContent = addMonthModal.querySelector('[data-modal-content]');
+    const newMonthNameInput = document.getElementById('newMonthName');
+    const confirmModal = document.getElementById('confirmModal');
+    const confirmModalContent = confirmModal.querySelector('[data-modal-content]');
+    const confirmModalMessage = document.getElementById('confirmModalMessage');
+    const confirmCancelButton = document.getElementById('confirmCancelButton');
+    const confirmActionButton = document.getElementById('confirmActionButton');
+    let confirmActionCallback = null;
+
+    function openModal(modalElement, modalContentElement) {
+        modalElement.classList.remove('hidden');
+        setTimeout(() => { 
+            modalElement.classList.remove('opacity-0');
+            modalContentElement.classList.remove('scale-95', 'opacity-0');
+            modalContentElement.classList.add('scale-100', 'opacity-100');
+        }, 10);
+    }
+
+    function closeModal(modalElement, modalContentElement) {
+        modalContentElement.classList.remove('scale-100', 'opacity-100');
+        modalContentElement.classList.add('scale-95', 'opacity-0');
+        modalElement.classList.add('opacity-0');
+        setTimeout(() => { 
+            modalElement.classList.add('hidden');
+        }, 300);
+    }
+    
+    window.openAddMonthModal = () => {
+      newMonthNameInput.value = '';
+      openModal(addMonthModal, addMonthModalContent);
+      newMonthNameInput.focus();
+    }
+
+    window.closeAddMonthModal = () => {
+      closeModal(addMonthModal, addMonthModalContent);
+    }
+
+    window.confirmAddMonth = async () => {
+      const monthName = newMonthNameInput.value.trim();
+      if (!monthName) {
+        alert("Por favor, insira o nome do mês."); 
+        newMonthNameInput.focus();
+        return;
+      }
+      const monthId = monthName.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/gi, ''); 
+
+      try {
+        const docRef = getScoreDocRef(monthId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            alert(`O mês "${monthName}" (ID: ${monthId}) já existe.`);
+            return;
+        }
+      } catch (error) {
+        console.error("Error checking if month exists:", error);
+        alert("Erro ao verificar o mês. Tente novamente.");
+        return;
+      }
+      
+      closeAddMonthModal();
+      await adicionarMes(monthId, monthName); 
+    }
+
+    function openConfirmModal(message, onConfirm) {
+      confirmModalMessage.textContent = message;
+      confirmActionCallback = onConfirm;
+      openModal(confirmModal, confirmModalContent);
+      confirmActionButton.onclick = () => {
+        if (confirmActionCallback) confirmActionCallback();
+        closeConfirmModal();
+      };
+      confirmCancelButton.onclick = closeConfirmModal;
+    }
+
+    function closeConfirmModal() {
+      closeModal(confirmModal, confirmModalContent);
+      confirmActionCallback = null;
+    }
+
+    // --- Firestore Operations ---
+    async function adicionarMes(monthId, monthDisplayName) {
+      if (!currentUserId) {
+        alert("Usuário não autenticado. Não é possível adicionar mês.");
+        return;
+      }
+      if (!monthId) return;
+
+      const initialData = {
+        dicas: 0,
+        tentativas: 0,
+        pontos: 0,
+        diasJogados: 0
+      };
+
+      const monthData = {
+        displayName: monthDisplayName, 
+        createdBy: currentUserId,
+        createdAt: new Date().toISOString(), 
+        participants: {}
+      };
+      
+      participants.forEach(p => {
+        monthData.participants[p.toLowerCase()] = { ...initialData };
+      });
+
+      try {
+        const docRef = getScoreDocRef(monthId);
+        await setDoc(docRef, monthData);
+        console.log(`Mês "${monthDisplayName}" (ID: ${monthId}) adicionado com sucesso.`);
+      } catch (error) {
+        console.error("Erro ao adicionar mês:", error);
+        alert("Falha ao adicionar o mês. Verifique o console para mais detalhes.");
+      }
+    }
+
+    window.salvarDados = async (monthId, participantName, field, value) => {
+      if (!currentUserId) {
+        alert("Usuário não autenticado. Não é possível salvar dados.");
+        return;
+      }
+      const docRef = getScoreDocRef(monthId);
+      const participantKey = `participants.${participantName.toLowerCase()}.${field}`;
+      
+      try {
+        await updateDoc(docRef, {
+          [participantKey]: Number(value) 
+        });
+        console.log(`Dados salvos para ${monthId}/${participantName}/${field}: ${value}`);
+      } catch (error) { 
+        console.error("Erro ao salvar dados:", error);
+      } 
+    }
+
+    window.excluirMes = (monthId, monthDisplayName) => {
+      if (!currentUserId) {
+        alert("Usuário não autenticado. Não é possível excluir mês.");
+        return;
+      }
+      openConfirmModal(`Tem certeza que deseja excluir o mês "${monthDisplayName}"? Esta ação não pode ser desfeita.`, async () => {
+        try {
+          const docRef = getScoreDocRef(monthId);
+          await deleteDoc(docRef);
+          console.log(`Mês "${monthDisplayName}" (ID: ${monthId}) excluído com sucesso.`);
+        } catch (error) {
+          console.error("Erro ao excluir mês:", error);
+          alert("Falha ao excluir o mês. Verifique o console para mais detalhes.");
+        }
+      });
+    }
+
+    function renderRow(monthId, monthDisplayName, participantName, data, isFirstParticipantForMonth) {
+      const row = document.createElement("tr");
+      row.className = "bg-white even:bg-slate-50 hover:bg-slate-100 transition-colors duration-150 text-xs sm:text-sm";
+      const participantDisplayName = participantName.charAt(0).toUpperCase() + participantName.slice(1);
+
+      const monthCellHTML = isFirstParticipantForMonth ? 
+        `<td class="px-3 py-3 sm:px-4 font-medium text-slate-900 align-middle text-center" rowspan="${participants.length}">${monthDisplayName}</td>` : "";
+      
+      const actionCellHTML = isFirstParticipantForMonth ? 
+        `<td class="px-3 py-3 sm:px-4 text-center align-middle" rowspan="${participants.length}">
+          <button class="delete-btn-icon text-red-500 hover:text-red-700 p-1 rounded-md transition-colors" onclick="excluirMes('${monthId}', '${monthDisplayName}')" title="Excluir Mês ${monthDisplayName}">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 sm:h-5 sm:w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+            </svg>
+          </button>
+        </td>` : "";
+
+      row.innerHTML = `
+        ${monthCellHTML}
+        <td class="px-3 py-3 sm:px-4 align-middle">${participantDisplayName}</td>
+        <td class="px-1 py-2 sm:px-2 text-center align-middle"><input type="number" value="${data.dicas ?? 0}" onchange="salvarDados('${monthId}', '${participantName}', 'dicas', this.value)" class="w-16 sm:w-20 p-2 border border-slate-300 rounded-md text-center focus:ring-1 focus:ring-blue-500 focus:border-transparent outline-none text-xs sm:text-sm"></td>
+        <td class="px-1 py-2 sm:px-2 text-center align-middle"><input type="number" value="${data.tentativas ?? 0}" onchange="salvarDados('${monthId}', '${participantName}', 'tentativas', this.value)" class="w-16 sm:w-20 p-2 border border-slate-300 rounded-md text-center focus:ring-1 focus:ring-blue-500 focus:border-transparent outline-none text-xs sm:text-sm"></td>
+        <td class="px-1 py-2 sm:px-2 text-center align-middle"><input type="number" value="${data.pontos ?? 0}" onchange="salvarDados('${monthId}', '${participantName}', 'pontos', this.value)" class="w-16 sm:w-20 p-2 border border-slate-300 rounded-md text-center focus:ring-1 focus:ring-blue-500 focus:border-transparent outline-none text-xs sm:text-sm"></td>
+        <td class="px-1 py-2 sm:px-2 text-center align-middle"><input type="number" value="${data.diasJogados ?? 0}" onchange="salvarDados('${monthId}', '${participantName}', 'diasJogados', this.value)" class="w-16 sm:w-20 p-2 border border-slate-300 rounded-md text-center focus:ring-1 focus:ring-blue-500 focus:border-transparent outline-none text-xs sm:text-sm"></td>
+        ${actionCellHTML}
+      `;
+      tableBody.appendChild(row);
+    }
+
+    function loadScores() {
+      if (!currentUserId) {
+        console.log("Cannot load scores, user not authenticated.");
+        showEmptyState(true, "Aguardando autenticação...");
+        return;
+      }
+      if (unsubscribeScores) { 
+        unsubscribeScores();
+      }
+
+      const q = query(getScoresCollectionRef()); 
+      showLoadingState(true);
+
+      unsubscribeScores = onSnapshot(q, (querySnapshot) => {
+        tableBody.innerHTML = ""; 
+        if (querySnapshot.empty) {
+          showEmptyState(true);
+          return;
+        }
+        
+        showEmptyState(false); 
+        showLoadingState(false);
+
+        const months = [];
+        querySnapshot.forEach((doc) => {
+            months.push({ id: doc.id, ...doc.data() });
+        });
+
+        months.sort((a, b) => {
+            const timeA = new Date(a.createdAt || 0).getTime();
+            const timeB = new Date(b.createdAt || 0).getTime();
+
+            if (timeA < timeB) return -1; 
+            if (timeA > timeB) return 1;  
+
+            const nameA = (a.displayName || a.id).toLowerCase();
+            const nameB = (b.displayName || b.id).toLowerCase();
+            if (nameA < nameB) return -1;
+            if (nameA > nameB) return 1;
+            return 0;
+        });
+
+
+        months.forEach((monthDoc) => {
+          const monthId = monthDoc.id;
+          const monthData = monthDoc; 
+          const monthDisplayName = monthData.displayName || monthId; 
+
+          if (monthData.participants) {
+            participants.forEach((participantNameKey, index) => {
+              const participantData = monthData.participants[participantNameKey.toLowerCase()];
+              if (participantData) {
+                renderRow(monthId, monthDisplayName, participantNameKey, participantData, index === 0);
+              } else {
+                 const defaultData = { dicas: 0, tentativas: 0, pontos: 0, diasJogados: 0 };
+                 renderRow(monthId, monthDisplayName, participantNameKey, defaultData, index === 0);
+              }
+            });
+          }
+        });
+      }, (error) => {
+        console.error("Error fetching scores: ", error);
+        showEmptyState(true, "Erro ao carregar dados. Verifique o console.");
+        showLoadingState(false);
+      });
+    }
+  </script>
+</body>
+</html>
